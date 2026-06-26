@@ -19,9 +19,12 @@ BASE_URL   = "https://api.mexc.com"
 SYMBOL     = "BTCUSDT"
 INTERVAL   = "60m"
 SLEEP_SEC  = 60
-RISK_PERCENT    = 0.04
-TAKE_PROFIT_PCT = 0.06
-STOP_LOSS_PCT   = 0.03
+
+# Risk settings optimized for $50 account
+RISK_PERCENT    = 0.20  # 20% per trade = ~$10 per trade
+TAKE_PROFIT_PCT = 0.06  # 6% take profit = ~$3 profit per win
+STOP_LOSS_PCT   = 0.03  # 3% stop loss = ~$1.50 max loss per trade
+
 RSI_PERIOD = 14
 RSI_BUY    = 35
 RSI_SELL   = 65
@@ -152,6 +155,7 @@ def run_bot():
     log.info("=" * 55)
     log.info("  MEXC Trading Bot - RSI + EMA Strategy")
     log.info(f"  Symbol: {SYMBOL} | Timeframe: {INTERVAL}")
+    log.info(f"  Risk: {RISK_PERCENT*100}% | TP: {TAKE_PROFIT_PCT*100}% | SL: {STOP_LOSS_PCT*100}%")
     log.info("=" * 55)
 
     if not API_KEY or not SECRET_KEY:
@@ -181,6 +185,7 @@ def run_bot():
                     position.close("strategy_signal")
             elif signals["buy_signal"]:
                 balance = get_balance("USDT")
+                log.info(f"USDT Balance: ${balance:.2f}")
                 if balance < 10:
                     log.warning("Insufficient balance (< $10), skipping.")
                 else:
@@ -199,8 +204,7 @@ def run_bot():
         time.sleep(SLEEP_SEC)
 
 
-# ── AUTO RESTART WRAPPER ─────────────────────────────────────────────────────
-# If the bot crashes for any reason, it waits 30 seconds and restarts itself
+# AUTO RESTART WRAPPER
 if __name__ == "__main__":
     restart_count = 0
     while True:
