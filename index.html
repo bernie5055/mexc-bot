@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MEXC Bot">
+<title>MEXC Bot Monitor</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0a0e1a;
+    --card: #111827;
+    --border: #1e2d45;
+    --green: #00e5a0;
+    --red: #ff4d6a;
+    --blue: #3b82f6;
+    --yellow: #f59e0b;
+    --text: #f0f4ff;
+    --muted: #6b7fa3;
+    --glow: 0 0 20px rgba(0,229,160,0.15);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(180deg, #0d1528 0%, var(--bg) 100%);
+    padding: 50px 20px 20px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+
+  .header h1 span { color: var(--green); }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,229,160,0.1);
+    border: 1px solid rgba(0,229,160,0.3);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--green);
+    margin-top: 8px;
+  }
+
+  .status-pill.offline {
+    background: rgba(255,77,106,0.1);
+    border-color: rgba(255,77,106,0.3);
+    color: var(--red);
+  }
+
+  .dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
+
+  .dot.offline { background: var(--red); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Cards */
+  .container { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 12px;
+  }
+
+  /* Price Card */
+  .price-card {
+    background: linear-gradient(135deg, #0d1f3c 0%, #111827 100%);
+    border-color: #1e3a5f;
+  }
+
+  .price-main {
+    font-size: 36px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: var(--text);
+  }
+
+  .price-change {
+    font-size: 14px;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .price-change.up { color: var(--green); }
+  .price-change.down { color: var(--red); }
+
+  /* Indicators Grid */
+  .indicators { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .indicator {
+    background: #0d1221;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .indicator-label {
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 4px;
+  }
+
+  .indicator-value {
+    font-size: 20px;
+    font-weight: 700;
+  }
+
+  .indicator-value.bullish { color: var(--green); }
+  .indicator-value.bearish { color: var(--red); }
+  .indicator-value.neutral { color: var(--yellow); }
+
+  /* Signal Banner */
+  .signal-banner {
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 15px;
+  }
+
+  .signal-banner.buy {
+    background: rgba(0,229,160,0.12);
+    border: 1px solid rgba(0,229,160,0.4);
+    color: var(--green);
+  }
+
+  .signal-banner.sell {
+    background: rgba(255,77,106,0.12);
+    border: 1px solid rgba(255,77,106,0.4);
+    color: var(--red);
+  }
+
+  .signal-banner.wait {
+    background: rgba(107,127,163,0.12);
+    border: 1px solid rgba(107,127,163,0.3);
+    color: var(--muted);
+  }
+
+  .signal-icon { font-size: 24px; }
+
+  /* Balance */
+  .balance-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .balance-row:last-child { border-bottom: none; }
+
+  .balance-label { font-size: 13px; color: var(--muted); }
+  .balance-value { font-size: 15px; font-weight: 600; }
+
+  /* Control Buttons */
+  .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .btn {
+    border: none;
+    border-radius: 14px;
+    padding: 16px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 0.3px;
+  }
+
+  .btn:active { transform: scale(0.96); }
+
+  .btn-start {
+    background: linear-gradient(135deg, #00e5a0, #00b87a);
+    color: #0a1a12;
+    box-shadow: 0 4px 20px rgba(0,229,160,0.3);
+  }
+
+  .btn-stop {
+    background: linear-gradient(135deg, #ff4d6a, #cc2a44);
+    color: #fff;
+    box-shadow: 0 4px 20px rgba(255,77,106,0.3);
+  }
+
+  .btn-refresh {
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    grid-column: span 2;
+  }
+
+  /* Trade History */
+  .trade-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .trade-item:last-child { border-bottom: none; }
+
+  .trade-left { display: flex; align-items: center; gap: 10px; }
+
+  .trade-badge {
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+  }
+
+  .trade-badge.buy { background: rgba(0,229,160,0.15); color: var(--green); }
+  .trade-badge.sell { background: rgba(255,77,106,0.15); color: var(--red); }
+
+  .trade-info { font-size: 13px; }
+  .trade-pair { font-weight: 600; }
+  .trade-time { color: var(--muted); font-size: 11px; margin-top: 2px; }
+
+  .trade-pnl { font-size: 14px; font-weight: 700; }
+  .trade-pnl.pos { color: var(--green); }
+  .trade-pnl.neg { color: var(--red); }
+
+  /* RSI Bar */
+  .rsi-bar-container { margin-top: 8px; }
+  .rsi-track {
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    position: relative;
+  }
+  .rsi-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  .rsi-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
+
+  /* Last updated */
+  .last-updated {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  .spinning { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>MEXC <span>Bot</span> Monitor</h1>
+  <div class="status-pill" id="statusPill">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Price Card -->
+  <div class="card price-card">
+    <div class="card-title">BTC / USDT</div>
+    <div class="price-main" id="btcPrice">$--,---</div>
+    <div class="price-change" id="priceChange">Loading...</div>
+  </div>
+
+  <!-- Signal -->
+  <div class="signal-banner wait" id="signalBanner">
+    <div class="signal-icon">⏳</div>
+    <div>
+      <div id="signalTitle">Waiting for signal...</div>
+      <div style="font-size:12px; font-weight:400; opacity:0.7; margin-top:2px" id="signalSub">Bot is scanning the market</div>
+    </div>
+  </div>
+
+  <!-- Indicators -->
+  <div class="card">
+    <div class="card-title">Indicators</div>
+    <div class="indicators">
+      <div class="indicator">
+        <div class="indicator-label">RSI (14)</div>
+        <div class="indicator-value neutral" id="rsiValue">--</div>
+        <div class="rsi-bar-container">
+          <div class="rsi-track">
+            <div class="rsi-fill" id="rsiFill" style="width:50%; background:#f59e0b;"></div>
+          </div>
+          <div class="rsi-labels"><span>0</span><span>35</span><span>65</span><span>100</span></div>
+        </div>
+      </div>
+      <div class="indicator">
+        <div class="indicator-label">Trend</div>
+        <div class="indicator-value neutral" id="trendValue">--</div>
+        <div style="font-size:11px; color:var(--muted); margin-top:4px" id="trendSub">EMA50 vs EMA200</div>
+      </div>
+      <div class="indicator">
+        <div class="indicator-label">EMA 50</div>
+        <div class="indicator-value" id="ema50Value" style="font-size:15px; color:var(--text)">$--</div>
+      </div>
+      <div class="indicator">
+        <div class="indicator-label">EMA 200</div>
+        <div class="indicator-value" id="ema200Value" style="font-size:15px; color:var(--text)">$--</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Balance -->
+  <div class="card">
+    <div class="card-title">Account</div>
+    <div class="balance-row">
+      <div class="balance-label">USDT Balance</div>
+      <div class="balance-value" id="usdtBalance">$--</div>
+    </div>
+    <div class="balance-row">
+      <div class="balance-label">In Trade</div>
+      <div class="balance-value" id="inTrade">No</div>
+    </div>
+    <div class="balance-row">
+      <div class="balance-label">Last Check</div>
+      <div class="balance-value" id="lastCheck">--:--</div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="card">
+    <div class="card-title">Controls</div>
+    <div class="controls">
+      <button class="btn btn-start" onclick="startBot()">▶ Start</button>
+      <button class="btn btn-stop" onclick="stopBot()">⏹ Stop</button>
+      <button class="btn btn-refresh" onclick="refreshData()">↻ Refresh Data</button>
+    </div>
+  </div>
+
+  <!-- Trade History -->
+  <div class="card">
+    <div class="card-title">Recent Trades</div>
+    <div id="tradeHistory">
+      <div style="text-align:center; padding:20px; color:var(--muted); font-size:13px">
+        No trades yet — bot is watching the market
+      </div>
+    </div>
+  </div>
+
+  <div class="last-updated" id="lastUpdated">Last updated: --</div>
+
+</div>
+
+<script>
+// ── Simulated live data (replace with real API calls when hosted) ──────────
+let botRunning = true;
+let trades = [];
+let inTrade = false;
+
+function getRSIColor(rsi) {
+  if (rsi < 35) return 'var(--green)';
+  if (rsi > 65) return 'var(--red)';
+  return 'var(--yellow)';
+}
+
+function getRSIClass(rsi) {
+  if (rsi < 35) return 'bullish';
+  if (rsi > 65) return 'bearish';
+  return 'neutral';
+}
+
+function formatPrice(p) {
+  return '$' + p.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function formatTime(d) {
+  return d.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
+}
+
+async function fetchBTCPrice() {
+  try {
+    const r = await fetch('https://api.mexc.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+    const d = await r.json();
+    return { price: parseFloat(d.lastPrice), change: parseFloat(d.priceChangePercent) };
+  } catch(e) {
+    return null;
+  }
+}
+
+async function fetchKlines() {
+  try {
+    const r = await fetch('https://api.mexc.com/api/v3/klines?symbol=BTCUSDT&interval=60m&limit=200');
+    const data = await r.json();
+    const closes = data.map(c => parseFloat(c[4]));
+    const rsi = calcRSI(closes, 14);
+    const ema50 = calcEMA(closes, 50);
+    const ema200 = calcEMA(closes, 200);
+    return { rsi, ema50, ema200 };
+  } catch(e) {
+    return null;
+  }
+}
+
+function calcRSI(closes, period) {
+  let gains = 0, losses = 0;
+  for (let i = closes.length - period; i < closes.length; i++) {
+    const diff = closes[i] - closes[i-1];
+    if (diff > 0) gains += diff;
+    else losses -= diff;
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  if (avgLoss === 0) return 100;
+  const rs = avgGain / avgLoss;
+  return Math.round((100 - (100 / (1 + rs))) * 100) / 100;
+}
+
+function calcEMA(closes, period) {
+  const k = 2 / (period + 1);
+  let ema = closes[0];
+  for (let i = 1; i < closes.length; i++) {
+    ema = closes[i] * k + ema * (1 - k);
+  }
+  return Math.round(ema * 100) / 100;
+}
+
+function updateSignal(rsi, price, ema50, ema200) {
+  const banner = document.getElementById('signalBanner');
+  const title = document.getElementById('signalTitle');
+  const sub = document.getElementById('signalSub');
+
+  if (rsi < 35 && price > ema200) {
+    banner.className = 'signal-banner buy';
+    document.querySelector('.signal-icon').textContent = '📈';
+    title.textContent = 'BUY Signal Detected!';
+    sub.textContent = `RSI oversold (${rsi}) + price above EMA200`;
+  } else if (rsi > 65) {
+    banner.className = 'signal-banner sell';
+    document.querySelector('.signal-icon').textContent = '📉';
+    title.textContent = 'SELL Signal Detected!';
+    sub.textContent = `RSI overbought (${rsi})`;
+  } else {
+    banner.className = 'signal-banner wait';
+    document.querySelector('.signal-icon').textContent = '⏳';
+    title.textContent = 'No signal — waiting...';
+    sub.textContent = `RSI: ${rsi} | Watching market`;
+  }
+}
+
+async function refreshData() {
+  if (!botRunning) return;
+
+  document.getElementById('lastUpdated').innerHTML = '<span class="spinning">↻</span> Updating...';
+
+  const [priceData, klinesData] = await Promise.all([fetchBTCPrice(), fetchKlines()]);
+
+  if (priceData) {
+    document.getElementById('btcPrice').textContent = formatPrice(priceData.price);
+    const changeEl = document.getElementById('priceChange');
+    const up = priceData.change >= 0;
+    changeEl.textContent = (up ? '▲ +' : '▼ ') + priceData.change.toFixed(2) + '% today';
+    changeEl.className = 'price-change ' + (up ? 'up' : 'down');
+  }
+
+  if (klinesData) {
+    const { rsi, ema50, ema200 } = klinesData;
+
+    // RSI
+    const rsiEl = document.getElementById('rsiValue');
+    rsiEl.textContent = rsi;
+    rsiEl.className = 'indicator-value ' + getRSIClass(rsi);
+    document.getElementById('rsiFill').style.width = rsi + '%';
+    document.getElementById('rsiFill').style.background = getRSIColor(rsi);
+
+    // Trend
+    const trendEl = document.getElementById('trendValue');
+    if (ema50 > ema200) {
+      trendEl.textContent = '↑ Bull';
+      trendEl.className = 'indicator-value bullish';
+    } else {
+      trendEl.textContent = '↓ Bear';
+      trendEl.className = 'indicator-value bearish';
+    }
+
+    // EMAs
+    document.getElementById('ema50Value').textContent = formatPrice(ema50);
+    document.getElementById('ema200Value').textContent = formatPrice(ema200);
+
+    // Signal
+    if (priceData) updateSignal(rsi, priceData.price, ema50, ema200);
+  }
+
+  document.getElementById('lastCheck').textContent = formatTime(new Date());
+  document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTime(new Date());
+}
+
+function startBot() {
+  botRunning = true;
+  document.getElementById('statusPill').className = 'status-pill';
+  document.getElementById('statusDot').className = 'dot';
+  document.getElementById('statusText').textContent = 'Bot Online';
+  refreshData();
+  alert('✅ Bot started! It will check the market every 60 seconds.');
+}
+
+function stopBot() {
+  botRunning = false;
+  document.getElementById('statusPill').className = 'status-pill offline';
+  document.getElementById('statusDot').className = 'dot offline';
+  document.getElementById('statusText').textContent = 'Bot Stopped';
+  document.getElementById('signalBanner').className = 'signal-banner wait';
+  document.querySelector('.signal-icon').textContent = '⏸';
+  document.getElementById('signalTitle').textContent = 'Bot is stopped';
+  document.getElementById('signalSub').textContent = 'Press Start to resume trading';
+  alert('⏹ Bot stopped. No trades will be made.');
+}
+
+function addTrade(type, price, pnl) {
+  trades.unshift({ type, price, pnl, time: new Date() });
+  if (trades.length > 10) trades.pop();
+  renderTrades();
+}
+
+function renderTrades() {
+  const el = document.getElementById('tradeHistory');
+  if (trades.length === 0) {
+    el.innerHTML = '<div style="text-align:center; padding:20px; color:var(--muted); font-size:13px">No trades yet — bot is watching the market</div>';
+    return;
+  }
+  el.innerHTML = trades.map(t => `
+    <div class="trade-item">
+      <div class="trade-left">
+        <div class="trade-badge ${t.type}">${t.type === 'buy' ? 'B' : 'S'}</div>
+        <div class="trade-info">
+          <div class="trade-pair">BTC/USDT ${t.type.toUpperCase()}</div>
+          <div class="trade-time">${formatTime(t.time)} · ${formatPrice(t.price)}</div>
+        </div>
+      </div>
+      ${t.pnl !== null ? `<div class="trade-pnl ${t.pnl >= 0 ? 'pos' : 'neg'}">${t.pnl >= 0 ? '+' : ''}${t.pnl}%</div>` : '<div class="trade-pnl" style="color:var(--muted)">Open</div>'}
+    </div>
+  `).join('');
+}
+
+// Update status
+document.getElementById('statusText').textContent = 'Bot Online';
+
+// Auto refresh every 60 seconds
+refreshData();
+setInterval(() => { if (botRunning) refreshData(); }, 60000);
+</script>
+</body>
+</html>
