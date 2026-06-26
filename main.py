@@ -16,14 +16,23 @@ load_dotenv()
 API_KEY    = os.getenv("MEXC_API_KEY", "")
 SECRET_KEY = os.getenv("MEXC_SECRET_KEY", "")
 BASE_URL   = "https://api.mexc.com"
-SYMBOL     = "BTCUSDT"
-INTERVAL   = "60m"
-SLEEP_SEC  = 60
 
-# Risk settings optimized for $50 account
+# Multiple trading pairs for more opportunities
+SYMBOLS = [
+    "BTCUSDT",  # Bitcoin
+    "ETHUSDT",  # Ethereum
+    "SOLUSDT",  # Solana
+    "BNBUSDT",  # BNB
+    "XRPUSDT",  # Ripple
+]
+
+INTERVAL  = "60m"
+SLEEP_SEC = 60
+
+# Risk settings for $50 account
 RISK_PERCENT    = 0.20  # 20% per trade = ~$10 per trade
-TAKE_PROFIT_PCT = 0.06  # 6% take profit = ~$3 profit per win
-STOP_LOSS_PCT   = 0.03  # 3% stop loss = ~$1.50 max loss per trade
+TAKE_PROFIT_PCT = 0.06  # 6% take profit
+STOP_LOSS_PCT   = 0.03  # 3% stop loss
 
 RSI_PERIOD = 14
 RSI_BUY    = 35
@@ -83,9 +92,11 @@ def get_balance(asset="USDT"):
 
 def place_order(symbol, side, quantity):
     ts = int(time.time() * 1000)
-    params = {"symbol": symbol, "side": side, "type": "MARKET", "quantity": quantity, "timestamp": ts}
+    params = {"symbol": symbol, "side": side, "type": "MARKET",
+              "quantity": quantity, "timestamp": ts}
     params["signature"] = _sign(params)
-    r = requests.post(f"{BASE_URL}/api/v3/order", params=params, headers=_headers(), timeout=10)
+    r = requests.post(f"{BASE_URL}/api/v3/order", params=params,
+                      headers=_headers(), timeout=10)
     r.raise_for_status()
     return r.json()
 
@@ -114,32 +125,35 @@ def get_signals(df):
     ema_fast = latest["ema_fast"]
     ema_slow = latest["ema_slow"]
     buy_signal  = (prev["rsi"] < RSI_BUY and rsi >= RSI_BUY and price > ema_slow)
-    sell_signal = ((prev["rsi"] < RSI_SELL and rsi >= RSI_SELL) or (price < ema_fast and rsi > 50))
-    return {"price": price, "rsi": round(rsi, 2), "ema_fast": round(ema_fast, 2),
-            "ema_slow": round(ema_slow, 2), "buy_signal": buy_signal, "sell_signal": sell_signal}
+    sell_signal = ((prev["rsi"] < RSI_SELL and rsi >= RSI_SELL) or
+                   (price < ema_fast and rsi > 50))
+    return {"price": price, "rsi": round(rsi, 2),
+            "ema_fast": round(ema_fast, 2), "ema_slow": round(ema_slow, 2),
+            "buy_signal": buy_signal, "sell_signal": sell_signal}
 
 
 class Position:
-    def __init__(self):
-        self.in_trade = False
+    def __init__(self, symbol):
+        self.symbol      = symbol
+        self.in_trade    = False
         self.entry_price = 0.0
-        self.quantity = 0.0
+        self.quantity    = 0.0
         self.take_profit = 0.0
-        self.stop_loss = 0.0
+        self.stop_loss   = 0.0
 
     def open(self, price, qty):
-        self.in_trade = True
+        self.in_trade    = True
         self.entry_price = price
-        self.quantity = qty
+        self.quantity    = qty
         self.take_profit = price * (1 + TAKE_PROFIT_PCT)
         self.stop_loss   = price * (1 - STOP_LOSS_PCT)
-        log.info(f"POSITION OPENED | Entry: ${price:.2f} | Qty: {qty} | TP: ${self.take_profit:.2f} | SL: ${self.stop_loss:.2f}")
+        log.info(f"[{self.symbol}] OPENED | Entry: ${price:.4f} | Qty: {qty} | TP: ${self.take_profit:.4f} | SL: ${self.stop_loss:.4f}")
 
     def close(self, reason="signal"):
-        log.info(f"POSITION CLOSED | Reason: {reason}")
-        self.in_trade = False
+        log.info(f"[{self.symbol}] CLOSED | Reason: {reason}")
+        self.in_trade    = False
         self.entry_price = 0.0
-        self.quantity = 0.0
+        self.quantity    = 0.0
 
     def check_exits(self, current_price):
         if not self.in_trade:
@@ -151,10 +165,22 @@ class Position:
         return None
 
 
+def get_quantity_precision(symbol):
+    """Get the right decimal precision for each coin."""
+    precisions = {
+        "BTCUSDT": 6,
+        "ETHUSDT": 5,
+        "SOLUSDT": 3,
+        "BNBUSDT": 4,
+        "XRPUSDT": 1,
+    }
+    return precisions.get(symbol, 4)
+
+
 def run_bot():
     log.info("=" * 55)
-    log.info("  MEXC Trading Bot - RSI + EMA Strategy")
-    log.info(f"  Symbol: {SYMBOL} | Timeframe: {INTERVAL}")
+    log.info("  MEXC Multi-Pair Trading Bot")
+    log.info(f"  Pairs: {', '.join(SYMBOLS)}")
     log.info(f"  Risk: {RISK_PERCENT*100}% | TP: {TAKE_PROFIT_PCT*100}% | SL: {STOP_LOSS_PCT*100}%")
     log.info("=" * 55)
 
@@ -162,45 +188,61 @@ def run_bot():
         log.error("API keys not set! Check your .env file.")
         return
 
-    position = Position()
+    # Create a position tracker for each symbol
+    positions = {symbol: Position(symbol) for symbol in SYMBOLS}
 
     while True:
         try:
-            df      = get_klines(SYMBOL, INTERVAL)
-            signals = get_signals(df)
-            price   = signals["price"]
-            log.info(f"[{datetime.now().strftime('%H:%M:%S')}] Price: ${price:.2f} | RSI: {signals['rsi']} | EMA50: ${signals['ema_fast']:.2f} | EMA200: ${signals['ema_slow']:.2f}")
+            balance = get_balance("USDT")
+            log.info(f"USDT Balance: ${balance:.2f}")
 
-            if position.in_trade:
-                exit_reason = position.check_exits(price)
-                if exit_reason:
-                    order = place_order(SYMBOL, "SELL", position.quantity)
-                    pnl = (price - position.entry_price) / position.entry_price * 100
-                    log.info(f"Exit: {exit_reason} | PnL: {pnl:.2f}%")
-                    position.close(exit_reason)
-                elif signals["sell_signal"]:
-                    order = place_order(SYMBOL, "SELL", position.quantity)
-                    pnl = (price - position.entry_price) / position.entry_price * 100
-                    log.info(f"SELL signal | PnL: {pnl:.2f}%")
-                    position.close("strategy_signal")
-            elif signals["buy_signal"]:
-                balance = get_balance("USDT")
-                log.info(f"USDT Balance: ${balance:.2f}")
-                if balance < 10:
-                    log.warning("Insufficient balance (< $10), skipping.")
-                else:
-                    qty = round((balance * RISK_PERCENT) / price, 6)
-                    order = place_order(SYMBOL, "BUY", qty)
-                    log.info(f"BUY order placed: {json.dumps(order)}")
-                    position.open(price, qty)
-            else:
-                log.info("No signal - waiting...")
+            for symbol in SYMBOLS:
+                try:
+                    df      = get_klines(symbol, INTERVAL)
+                    signals = get_signals(df)
+                    price   = signals["price"]
+                    pos     = positions[symbol]
+
+                    log.info(f"[{symbol}] Price: ${price:.4f} | RSI: {signals['rsi']} | EMA50: ${signals['ema_fast']:.4f}")
+
+                    if pos.in_trade:
+                        exit_reason = pos.check_exits(price)
+                        if exit_reason:
+                            place_order(symbol, "SELL", pos.quantity)
+                            pnl = (price - pos.entry_price) / pos.entry_price * 100
+                            log.info(f"[{symbol}] Exit: {exit_reason} | PnL: {pnl:.2f}%")
+                            pos.close(exit_reason)
+                        elif signals["sell_signal"]:
+                            place_order(symbol, "SELL", pos.quantity)
+                            pnl = (price - pos.entry_price) / pos.entry_price * 100
+                            log.info(f"[{symbol}] SELL signal | PnL: {pnl:.2f}%")
+                            pos.close("strategy_signal")
+
+                    elif signals["buy_signal"]:
+                        if balance < 10:
+                            log.warning(f"[{symbol}] Low balance (${balance:.2f}), skipping.")
+                        else:
+                            trade_amount = balance * RISK_PERCENT
+                            precision    = get_quantity_precision(symbol)
+                            qty          = round(trade_amount / price, precision)
+                            place_order(symbol, "BUY", qty)
+                            log.info(f"[{symbol}] BUY! Amount: ${trade_amount:.2f} | Qty: {qty}")
+                            pos.open(price, qty)
+                            balance -= trade_amount
+                    else:
+                        log.info(f"[{symbol}] No signal - waiting...")
+
+                    time.sleep(2)  # Small delay between pairs
+
+                except Exception as e:
+                    log.error(f"[{symbol}] Error: {e}")
 
         except requests.exceptions.RequestException as e:
             log.error(f"Network error: {e}")
         except Exception as e:
             log.error(f"Unexpected error: {e}", exc_info=True)
 
+        log.info(f"Sleeping {SLEEP_SEC}s before next check...")
         time.sleep(SLEEP_SEC)
 
 
