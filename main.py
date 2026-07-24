@@ -241,7 +241,7 @@ def run_bot():
             balance = get_balance("USDT")
             log.info(f"USDT Balance: ${balance:.2f}")
             bot_status["usdt_balance"] = round(balance, 2)
-            bot_status["last_check"] = datetime.utcnow().isoformat()
+            bot_status["last_check"] = datetime.utcnow().isoformat() + "Z"
 
             for symbol in SYMBOLS:
                 try:
