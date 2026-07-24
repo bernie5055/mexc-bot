@@ -10,7 +10,8 @@ from dotenv import load_dotenv
 import requests
 import pandas as pd
 import numpy as np
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 from threading import Thread
 
 load_dotenv()
@@ -58,10 +59,33 @@ bot_status = {
 }
 
 status_app = Flask(__name__)
+CORS(status_app, origins=["https://bernie5055.github.io"])
 
 @status_app.route("/status")
 def status():
     return jsonify(bot_status)
+
+@status_app.route("/api/v3/klines")
+def proxy_klines():
+    symbol = request.args.get("symbol", "BTCUSDT")
+    interval = request.args.get("interval", "60m")
+    limit = request.args.get("limit", "200")
+    r = requests.get(
+        f"{BASE_URL}/api/v3/klines",
+        params={"symbol": symbol, "interval": interval, "limit": limit},
+        timeout=10
+    )
+    return jsonify(r.json())
+
+@status_app.route("/api/v3/ticker/24hr")
+def proxy_ticker():
+    symbol = request.args.get("symbol", "BTCUSDT")
+    r = requests.get(
+        f"{BASE_URL}/api/v3/ticker/24hr",
+        params={"symbol": symbol},
+        timeout=10
+    )
+    return jsonify(r.json())
 
 def run_status_server():
     status_app.run(host="0.0.0.0", port=8080)
