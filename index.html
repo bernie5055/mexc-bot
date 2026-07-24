@@ -408,7 +408,7 @@ function formatTime(d) {
 
 async function fetchBTCPrice() {
   try {
-    const r = await fetch('https://api.mexc.com/api/v3/ticker/24hr?symbol=BTCUSDT');
+    const r = await fetch('https://https://mexc-bot-production-a750.up.railway.app/api/v3/ticker/24hr?symbol=BTCUSDT');
     const d = await r.json();
     return { price: parseFloat(d.lastPrice), change: parseFloat(d.priceChangePercent) };
   } catch(e) {
@@ -418,7 +418,7 @@ async function fetchBTCPrice() {
 
 async function fetchKlines() {
   try {
-    const r = await fetch('https://api.mexc.com/api/v3/klines?symbol=BTCUSDT&interval=60m&limit=200');
+    const r = await fetch('https://https://mexc-bot-production-a750.up.railway.app/api/v3/klines?symbol=BTCUSDT&interval=60m&limit=200');
     const data = await r.json();
     const closes = data.map(c => parseFloat(c[4]));
     const rsi = calcRSI(closes, 14);
