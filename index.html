@@ -31,7 +31,6 @@
     padding-bottom: 40px;
   }
 
-  /* Header */
   .header {
     background: linear-gradient(180deg, #0d1528 0%, var(--bg) 100%);
     padding: 50px 20px 20px;
@@ -80,7 +79,6 @@
     50% { opacity: 0.3; }
   }
 
-  /* Cards */
   .container { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 
   .card {
@@ -99,7 +97,6 @@
     margin-bottom: 12px;
   }
 
-  /* Price Card */
   .price-card {
     background: linear-gradient(135deg, #0d1f3c 0%, #111827 100%);
     border-color: #1e3a5f;
@@ -121,7 +118,6 @@
   .price-change.up { color: var(--green); }
   .price-change.down { color: var(--red); }
 
-  /* Indicators Grid */
   .indicators { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   .indicator {
@@ -148,7 +144,6 @@
   .indicator-value.bearish { color: var(--red); }
   .indicator-value.neutral { color: var(--yellow); }
 
-  /* Signal Banner */
   .signal-banner {
     border-radius: 12px;
     padding: 14px 16px;
@@ -179,7 +174,6 @@
 
   .signal-icon { font-size: 24px; }
 
-  /* Balance */
   .balance-row {
     display: flex;
     justify-content: space-between;
@@ -193,7 +187,6 @@
   .balance-label { font-size: 13px; color: var(--muted); }
   .balance-value { font-size: 15px; font-weight: 600; }
 
-  /* Control Buttons */
   .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
   .btn {
@@ -228,7 +221,6 @@
     grid-column: span 2;
   }
 
-  /* Trade History */
   .trade-item {
     display: flex;
     justify-content: space-between;
@@ -262,7 +254,6 @@
   .trade-pnl.pos { color: var(--green); }
   .trade-pnl.neg { color: var(--red); }
 
-  /* RSI Bar */
   .rsi-bar-container { margin-top: 8px; }
   .rsi-track {
     height: 6px;
@@ -284,7 +275,6 @@
     margin-top: 4px;
   }
 
-  /* Last updated */
   .last-updated {
     text-align: center;
     font-size: 11px;
@@ -308,14 +298,12 @@
 
 <div class="container">
 
-  <!-- Price Card -->
   <div class="card price-card">
     <div class="card-title">BTC / USDT</div>
     <div class="price-main" id="btcPrice">$--,---</div>
     <div class="price-change" id="priceChange">Loading...</div>
   </div>
 
-  <!-- Signal -->
   <div class="signal-banner wait" id="signalBanner">
     <div class="signal-icon">⏳</div>
     <div>
@@ -324,7 +312,6 @@
     </div>
   </div>
 
-  <!-- Indicators -->
   <div class="card">
     <div class="card-title">Indicators</div>
     <div class="indicators">
@@ -354,7 +341,6 @@
     </div>
   </div>
 
-  <!-- Balance -->
   <div class="card">
     <div class="card-title">Account</div>
     <div class="balance-row">
@@ -371,7 +357,6 @@
     </div>
   </div>
 
-  <!-- Controls -->
   <div class="card">
     <div class="card-title">Controls</div>
     <div class="controls">
@@ -381,7 +366,6 @@
     </div>
   </div>
 
-  <!-- Trade History -->
   <div class="card">
     <div class="card-title">Recent Trades</div>
     <div id="tradeHistory">
@@ -396,10 +380,11 @@
 </div>
 
 <script>
-// ── Simulated live data (replace with real API calls when hosted) ──────────
 let botRunning = true;
 let trades = [];
-let inTrade = false;
+
+// Your Railway bot's public status endpoint
+const STATUS_URL = 'https://mexc-bot-production-a750.up.railway.app/status';
 
 function getRSIColor(rsi) {
   if (rsi < 35) return 'var(--green)';
@@ -440,6 +425,15 @@ async function fetchKlines() {
     const ema50 = calcEMA(closes, 50);
     const ema200 = calcEMA(closes, 200);
     return { rsi, ema50, ema200 };
+  } catch(e) {
+    return null;
+  }
+}
+
+async function fetchBotStatus() {
+  try {
+    const r = await fetch(STATUS_URL);
+    return await r.json();
   } catch(e) {
     return null;
   }
@@ -496,7 +490,11 @@ async function refreshData() {
 
   document.getElementById('lastUpdated').innerHTML = '<span class="spinning">↻</span> Updating...';
 
-  const [priceData, klinesData] = await Promise.all([fetchBTCPrice(), fetchKlines()]);
+  const [priceData, klinesData, botData] = await Promise.all([
+    fetchBTCPrice(),
+    fetchKlines(),
+    fetchBotStatus()
+  ]);
 
   if (priceData) {
     document.getElementById('btcPrice').textContent = formatPrice(priceData.price);
@@ -509,14 +507,12 @@ async function refreshData() {
   if (klinesData) {
     const { rsi, ema50, ema200 } = klinesData;
 
-    // RSI
     const rsiEl = document.getElementById('rsiValue');
     rsiEl.textContent = rsi;
     rsiEl.className = 'indicator-value ' + getRSIClass(rsi);
     document.getElementById('rsiFill').style.width = rsi + '%';
     document.getElementById('rsiFill').style.background = getRSIColor(rsi);
 
-    // Trend
     const trendEl = document.getElementById('trendValue');
     if (ema50 > ema200) {
       trendEl.textContent = '↑ Bull';
@@ -526,37 +522,48 @@ async function refreshData() {
       trendEl.className = 'indicator-value bearish';
     }
 
-    // EMAs
     document.getElementById('ema50Value').textContent = formatPrice(ema50);
     document.getElementById('ema200Value').textContent = formatPrice(ema200);
 
-    // Signal
     if (priceData) updateSignal(rsi, priceData.price, ema50, ema200);
   }
 
-  document.getElementById('lastCheck').textContent = formatTime(new Date());
+  if (botData) {
+    document.getElementById('usdtBalance').textContent =
+      botData.usdt_balance != null ? '$' + botData.usdt_balance.toFixed(2) : '$--';
+    document.getElementById('inTrade').textContent = botData.in_trade ? 'Yes' : 'No';
+    if (botData.last_check) {
+      const checkTime = new Date(botData.last_check);
+      document.getElementById('lastCheck').textContent = formatTime(checkTime);
+    }
+    document.getElementById('statusPill').className = 'status-pill';
+    document.getElementById('statusDot').className = 'dot';
+    document.getElementById('statusText').textContent = 'Bot Online';
+  } else {
+    document.getElementById('statusPill').className = 'status-pill offline';
+    document.getElementById('statusDot').className = 'dot offline';
+    document.getElementById('statusText').textContent = 'Bot Unreachable';
+  }
+
   document.getElementById('lastUpdated').textContent = 'Last updated: ' + formatTime(new Date());
 }
 
 function startBot() {
   botRunning = true;
-  document.getElementById('statusPill').className = 'status-pill';
-  document.getElementById('statusDot').className = 'dot';
-  document.getElementById('statusText').textContent = 'Bot Online';
   refreshData();
-  alert('✅ Bot started! It will check the market every 60 seconds.');
+  alert('▶ Monitor resumed. Checking every 60 seconds.');
 }
 
 function stopBot() {
   botRunning = false;
   document.getElementById('statusPill').className = 'status-pill offline';
   document.getElementById('statusDot').className = 'dot offline';
-  document.getElementById('statusText').textContent = 'Bot Stopped';
+  document.getElementById('statusText').textContent = 'Monitor Paused';
   document.getElementById('signalBanner').className = 'signal-banner wait';
   document.querySelector('.signal-icon').textContent = '⏸';
-  document.getElementById('signalTitle').textContent = 'Bot is stopped';
-  document.getElementById('signalSub').textContent = 'Press Start to resume trading';
-  alert('⏹ Bot stopped. No trades will be made.');
+  document.getElementById('signalTitle').textContent = 'Monitor paused';
+  document.getElementById('signalSub').textContent = 'Press Start to resume — this does not stop the actual trading bot on Railway';
+  alert('⏹ This only pauses the phone display. To stop the real bot, use Railway.');
 }
 
 function addTrade(type, price, pnl) {
@@ -585,10 +592,6 @@ function renderTrades() {
   `).join('');
 }
 
-// Update status
-document.getElementById('statusText').textContent = 'Bot Online';
-
-// Auto refresh every 60 seconds
 refreshData();
 setInterval(() => { if (botRunning) refreshData(); }, 60000);
 </script>
