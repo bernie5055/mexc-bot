@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import requests
 import pandas as pd
 import numpy as np
+from flask import Flask, jsonify
+from threading import Thread
 
 load_dotenv()
 
@@ -46,6 +48,25 @@ logging.basicConfig(
     handlers=[logging.FileHandler("trading_bot.log"), logging.StreamHandler()]
 )
 log = logging.getLogger(__name__)
+
+# Shared status for the phone monitor app — no keys, just safe numbers
+bot_status = {
+    "usdt_balance": None,
+    "in_trade": False,
+    "last_check": None,
+    "pairs": {}
+}
+
+status_app = Flask(__name__)
+
+@status_app.route("/status")
+def status():
+    return jsonify(bot_status)
+
+def run_status_server():
+    status_app.run(host="0.0.0.0", port=8080)
+
+Thread(target=run_status_server, daemon=True).start()
 
 
 def _sign(params):
@@ -195,6 +216,8 @@ def run_bot():
         try:
             balance = get_balance("USDT")
             log.info(f"USDT Balance: ${balance:.2f}")
+            bot_status["usdt_balance"] = round(balance, 2)
+            bot_status["last_check"] = datetime.utcnow().isoformat()
 
             for symbol in SYMBOLS:
                 try:
@@ -204,6 +227,13 @@ def run_bot():
                     pos     = positions[symbol]
 
                     log.info(f"[{symbol}] Price: ${price:.4f} | RSI: {signals['rsi']} | EMA50: ${signals['ema_fast']:.4f}")
+                    bot_status["pairs"][symbol] = {
+                        "price": round(price, 4),
+                        "rsi": signals["rsi"],
+                        "ema_fast": signals["ema_fast"],
+                        "ema_slow": signals["ema_slow"],
+                        "in_trade": pos.in_trade
+                    }
 
                     if pos.in_trade:
                         exit_reason = pos.check_exits(price)
